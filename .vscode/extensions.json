@@ -39,6 +39,9 @@
     "visualstudioexptteam.vscodeintellicode",
     "wayou.vscode-todo-highlight",
     "gruntfuggly.todo-tree",
-    "pkief.material-icon-theme"
+    "pkief.material-icon-theme",
+
+    // Infrastructure as Code
+    "hashicorp.terraform"
   ]
 }
