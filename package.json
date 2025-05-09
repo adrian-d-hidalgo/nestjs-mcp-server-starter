@@ -10,8 +10,10 @@
     "npm": ">=10.9"
   },
   "scripts": {
-    "build": "docker build -t nestjs-mcp-server .",
-    "start": "docker run --rm -p 3000:3000 --env-file .env nestjs-mcp-server",
+    "build": "nest build",
+    "start": "nest start",
+    "build:docker": "docker build -t nestjs-mcp-server .",
+    "start:docker": "docker run --rm -p 3210:3000 --env-file .env nestjs-mcp-server",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
