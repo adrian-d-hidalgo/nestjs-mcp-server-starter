@@ -1,0 +1,56 @@
+name: Deploy Production Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: nestjs-mcp-server
+  ECS_CLUSTER: nestjs-mcp-server-cluster
+  ECS_SERVICE: nestjs-mcp-server-service
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag (strip leading v)
+        run: echo "IMAGE_TAG=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Get current ECS task definition
+        id: task-def
+        run: |
+          aws ecs describe-services --cluster $ECS_CLUSTER --services $ECS_SERVICE \
+            --query "services[0].taskDefinition" --output text > taskdef_arn.txt
+          export TASK_DEF_ARN=$(cat taskdef_arn.txt)
+          aws ecs describe-task-definition --task-definition $TASK_DEF_ARN \
+            --query "taskDefinition" > taskdef.json
+
+      - name: Create new ECS task definition with new image
+        id: new-task-def
+        run: |
+          ECR_REGISTRY=$(aws ecr describe-repositories --repository-names $ECR_REPOSITORY --query "repositories[0].repositoryUri" --output text | sed "s/\/.*//")
+          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          cat taskdef.json | jq 'del(.status, .revision, .taskDefinitionArn, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            | jq --arg IMAGE_URI "$IMAGE_URI" '.containerDefinitions[0].image = $IMAGE_URI' > new-taskdef.json
+          NEW_TASK_DEF_ARN=$(aws ecs register-task-definition --cli-input-json file://new-taskdef.json --query "taskDefinition.taskDefinitionArn" --output text)
+          echo "NEW_TASK_DEF_ARN=$NEW_TASK_DEF_ARN" >> $GITHUB_ENV
+
+      - name: Update ECS service to use new task definition
+        run: |
+          aws ecs update-service \
+            --cluster $ECS_CLUSTER \
+            --service $ECS_SERVICE \
+            --task-definition $NEW_TASK_DEF_ARN
