@@ -1,5 +1,5 @@
-import { McpModule } from '@nestjs-mcp/server';
 import { Module } from '@nestjs/common';
+import { McpModule } from '@nestjs-mcp/server';
 
 @Module({
   imports: [
